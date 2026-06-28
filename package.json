@@ -1,0 +1,16 @@
+{
+  "name": "sicro-bridge",
+  "version": "1.0.0",
+  "description": "Ponte HiveMQ (MQTT/TLS) <-> WebSocket para o sistema SICRO no App Inventor",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "mqtt": "^5.7.0",
+    "ws": "^8.17.0"
+  }
+}
