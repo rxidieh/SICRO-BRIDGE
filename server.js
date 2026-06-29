@@ -59,7 +59,8 @@ const server = http.createServer((req, res) => {
   }
 
   if (urlPath === '/' || urlPath === '/index.html') {
-    const file = path.join(__dirname, 'public', 'index.html');
+    //const file = path.join(__dirname, 'public', 'index.html');
+    const file = path.join(__dirname, 'index.html');
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(500); res.end('erro ao ler index.html'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
