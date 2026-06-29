@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel SICRO</title>
+<style>
+  :root { --bg:#0f2233; --card:#16334a; --accent:#4fd1c5; --muted:#9fb3c8; --line:#2c5573; }
+  * { box-sizing:border-box; }
+  body { font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:#eee; margin:0; padding:14px; }
+  h1 { font-size:18px; margin:0 0 2px; color:var(--accent); }
+  .sub { font-size:12px; color:var(--muted); margin:0 0 12px; }
+  .status { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:bold; }
+  .on  { background:#1d4d3a; color:#9ff0c2; }
+  .off { background:#4d1d1d; color:#f0a9a9; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .cell { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .cell .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .cell .val { font-size:22px; font-weight:bold; margin-top:2px; }
+  .cell .unit { font-size:12px; color:var(--muted); font-weight:normal; }
+  .botoes { display:flex; gap:10px; margin-top:14px; }
+  button { flex:1; padding:14px; border:0; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer; }
+  .liga { background:var(--accent); color:#06222f; }
+  .desliga { background:#e2603f; color:#fff; }
+  .rodape { font-size:11px; color:var(--muted); margin-top:12px; text-align:center; }
+</style>
+</head>
+<body>
+  <h1>Painel SICRO</h1>
+  <p class="sub">Placa: <b id="board">-</b> &nbsp;|&nbsp; <span id="conn" class="status off">offline</span></p>
+
+  <div class="grid">
+    <div class="cell"><div class="lbl">Pressão</div><div class="val"><span id="pressao">-</span><span class="unit"> psi</span></div></div>
+    <div class="cell"><div class="lbl">Salinidade</div><div class="val"><span id="salinidade">-</span><span class="unit"> ppm</span></div></div>
+    <div class="cell"><div class="lbl">Vazão entrada</div><div class="val"><span id="vazao_entrada">-</span><span class="unit"> L/h</span></div></div>
+    <div class="cell"><div class="lbl">Vazão saída</div><div class="val"><span id="vazao_saida">-</span><span class="unit"> L/h</span></div></div>
+    <div class="cell"><div class="lbl">Status IHM</div><div class="val"><span id="status_ihm">-</span></div></div>
+    <div class="cell"><div class="lbl">Sistema</div><div class="val"><span id="sistema_ligado">-</span></div></div>
+    <div class="cell"><div class="lbl">Tempo flushing</div><div class="val"><span id="tempo_flushing">-</span><span class="unit"> min</span></div></div>
+    <div class="cell"><div class="lbl">Total horas</div><div class="val"><span id="total_horas">-</span><span class="unit"> h</span></div></div>
+    <div class="cell" style="grid-column:1 / -1"><div class="lbl">Total litros produzidos</div><div class="val"><span id="total_litros">-</span><span class="unit"> L</span></div></div>
+  </div>
+
+  <div class="botoes">
+    <button class="liga"    onclick="enviarComando('liga')">LIGAR</button>
+    <button class="desliga" onclick="enviarComando('desliga')">DESLIGAR</button>
+  </div>
+
+  <p class="rodape" id="rodape">conectando...</p>
+
+<script>
+  // -------- Parâmetros da query string: ?board=...&token=... --------
+  const params = new URLSearchParams(location.search);
+  const BOARD  = params.get('board') || '';     // vazio = aceita qualquer placa
+  const TOKEN  = params.get('token') || '';
+  document.getElementById('board').textContent = BOARD || '(qualquer)';
+
+  // Função global chamada pelo App Inventor via WebViewer.RunJavaScript(...)
+  // ou pelos botões desta própria página.
+  let ws = null;
+  function enviarComando(action) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'cmd', board: BOARD, action: action }));
+    }
+  }
+
+  // -------- Atualiza a tela e envia ao App Inventor --------
+  function aplicaTelemetria(d) {
+    const campos = ['pressao','vazao_entrada','vazao_saida','salinidade',
+                    'status_ihm','tempo_flushing','total_horas','total_litros'];
+    campos.forEach(k => {
+      const el = document.getElementById(k);
+      if (el && d[k] !== undefined) el.textContent = d[k];
+    });
+    const sl = document.getElementById('sistema_ligado');
+    if (sl && d.sistema_ligado !== undefined) sl.textContent = (d.sistema_ligado == 1) ? 'LIGADO' : 'desligado';
+
+    // Ponte para os blocos do App Inventor (dispara WebViewStringChange)
+    if (window.AppInventor && typeof window.AppInventor.setWebViewString === 'function') {
+      window.AppInventor.setWebViewString(JSON.stringify(d));
+    }
+  }
+
+  function setConn(online) {
+    const c = document.getElementById('conn');
+    c.textContent = online ? 'online' : 'offline';
+    c.className = 'status ' + (online ? 'on' : 'off');
+  }
+
+  // -------- WebSocket (reconecta automaticamente) --------
+  function conecta() {
+    const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+    const url = proto + '://' + location.host + '/ws' + (TOKEN ? ('?token=' + encodeURIComponent(TOKEN)) : '');
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setConn(true);
+      document.getElementById('rodape').textContent = 'ponte conectada';
+    };
+    ws.onclose = () => {
+      setConn(false);
+      document.getElementById('rodape').textContent = 'reconectando em 3s...';
+      setTimeout(conecta, 3000);
+    };
+    ws.onerror = () => { try { ws.close(); } catch (e) {} };
+
+    ws.onmessage = (ev) => {
+      let m;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+
+      if (m.type === 'telemetria') {
+        if (!BOARD || m.board === BOARD) aplicaTelemetria(m.data);
+      } else if (m.type === 'online') {
+        if (!BOARD || m.board === BOARD) {
+          // presença do hardware (não da ponte) — opcional exibir
+        }
+      }
+    };
+  }
+  conecta();
+</script>
+</body>
+</html>
